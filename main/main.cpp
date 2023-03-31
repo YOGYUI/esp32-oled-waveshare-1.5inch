@@ -3,6 +3,7 @@
 #include "esp_netif.h"
 #include "esp_event.h"
 #include "logger.h"
+#include "oledctrl.h"
 
 extern "C" void app_main(void)
 {
@@ -12,4 +13,7 @@ extern "C" void app_main(void)
     if (err != ESP_OK) {
         GetLogger(eLogType::Error)->Log("Failed to create event loop (ret: %d)", err);
     }
+
+    COLEDCtrl *oled = GetOLEDCtrl();
+    oled->initialize();
 }
