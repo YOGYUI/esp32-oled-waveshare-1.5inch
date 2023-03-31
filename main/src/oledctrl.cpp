@@ -11,7 +11,6 @@ COLEDCtrl::COLEDCtrl()
 {
     m_spi_dev_handle = nullptr;
     memset(&m_spi_transaction, 0, sizeof(m_spi_transaction));
-    m_spi_transaction.length = 8;
     m_spi_transaction.rxlength = 0;
     m_spi_transaction.user = nullptr;
 
@@ -19,6 +18,7 @@ COLEDCtrl::COLEDCtrl()
     m_width = 128;
     m_height = 128;
     m_buffer_len = size_t(m_width) * size_t(m_height) / SSD1327_PIXELSPERBYTE;
+    m_buffer.resize(m_buffer_len);
     m_brightness = 0.f;
 }
 
@@ -92,7 +92,8 @@ bool COLEDCtrl::init_spi_bus()
     cfg_bus.data5_io_num = -1;
     cfg_bus.data6_io_num = -1;
     cfg_bus.data7_io_num = -1;
-    cfg_bus.max_transfer_sz = 4092;
+    // cfg_bus.max_transfer_sz = 4092;
+    cfg_bus.max_transfer_sz = m_buffer.size();
     // cfg_bus.isr_cpu_id = INTR_CPU_ID_AUTO;   // esp-idf >= v5.0
     cfg_bus.intr_flags = 0;
 
@@ -111,7 +112,7 @@ bool COLEDCtrl::add_device_spi_bus()
     spi_device_interface_config_t cfg_dev_if;
     memset(&cfg_dev_if, 0, sizeof(cfg_dev_if));
     // cfg_dev_if.clock_source = SPI_CLK_SRC_DEFAULT;   // esp-idf >= v5.0
-    cfg_dev_if.clock_speed_hz = 10 * 1000 * 1000;    // Max 25MHz
+    cfg_dev_if.clock_speed_hz = 8 * 1000 * 1000;    // Max 25MHz
     cfg_dev_if.mode = 0;
     cfg_dev_if.spics_io_num = PIN_OLED_CS;
     cfg_dev_if.pre_cb = nullptr;
@@ -133,10 +134,29 @@ bool COLEDCtrl::spi_transfer(uint8_t data)
         return false;
     }
 
+    m_spi_transaction.length = 8;
     m_spi_transaction.tx_buffer = &data;
     esp_err_t ret = spi_device_polling_transmit(m_spi_dev_handle, &m_spi_transaction);
     if (ret != ESP_OK) {
-        GetLogger(eLogType::Error)->Log("failed to set potentiometer value");
+        GetLogger(eLogType::Error)->Log("failed to transfer");
+        return false;
+    }
+
+    return true;
+}
+
+bool COLEDCtrl::spi_transfer(uint8_t* buffer, size_t buffer_len)
+{
+    if (!m_spi_dev_handle) {
+        GetLogger(eLogType::Error)->Log("spi handle is not initialized");
+        return false;
+    }
+
+    m_spi_transaction.length = 8 * buffer_len;
+    m_spi_transaction.tx_buffer = buffer;
+    esp_err_t ret = spi_device_polling_transmit(m_spi_dev_handle, &m_spi_transaction);
+    if (ret != ESP_OK) {
+        GetLogger(eLogType::Error)->Log("failed to transfer");
         return false;
     }
 
@@ -164,6 +184,11 @@ void COLEDCtrl::reset()
     gpio_set_level((gpio_num_t)PIN_OLED_RST, 1);
 }
 
+void COLEDCtrl::update()
+{
+    display();
+}
+
 void COLEDCtrl::setup()
 {
     reset();
@@ -179,9 +204,9 @@ void COLEDCtrl::setup()
     command(SSD1327_SETSTARTLINE);          // set start line
     command(0x00);                          // ...
     command(SSD1327_SETREMAP);              // set segment remapping
-    command(0x53);                          //  COM bottom-up, split odd/even, enable column and nibble remapping
+    command(0x53);                          // COM bottom-up, split odd/even, enable column and nibble remapping
+    /*
     command(SSD1327_SETGRAYSCALETABLE);
-
     command(0);
     command(1);
     command(2);
@@ -197,6 +222,7 @@ void COLEDCtrl::setup()
     command(46);
     command(54);
     command(63);
+    */
     command(SSD1327_SETPHASELENGTH);
     command(0x55);
     command(SSD1327_SETVCOMHVOLTAGE);   // Set High Voltage Level of COM Pin
@@ -206,7 +232,7 @@ void COLEDCtrl::setup()
     command(SSD1327_NORMALDISPLAY);     // set display mode
 
     set_brightness(1.f);
-    // fill(Color::BLACK);                 // clear display - ensures we do not see garbage at power-on
+    memset(&m_buffer[0], 0x00, m_buffer.size());
     display();                          // ...write buffer, which actually clears the display's memory
     turn_on();                          // display ON
 }
@@ -220,7 +246,9 @@ void COLEDCtrl::command(uint8_t value)
 
 void COLEDCtrl::write_display_data()
 {
-
+    gpio_set_level((gpio_num_t)PIN_OLED_DC, 1);
+    vTaskDelay(1 / portTICK_PERIOD_MS);
+    spi_transfer(&m_buffer[0], m_buffer.size());
 }
 
 void COLEDCtrl::display()
@@ -240,4 +268,24 @@ void COLEDCtrl::set_brightness(float brightness)
     m_brightness = MAX(0.f, MIN(1.f, brightness));
     this->command(SSD1327_SETCONTRAST);
     this->command(int(SSD1327_MAX_CONTRAST * m_brightness));
+}
+
+void COLEDCtrl::set_pixel_value(uint16_t x, uint16_t y, uint8_t value)
+{
+    if (x >= m_width || y >= m_height) {
+        return;
+    }
+
+    uint16_t pos = (x / SSD1327_PIXELSPERBYTE) + (y * m_width / SSD1327_PIXELSPERBYTE);
+    m_buffer[pos] = value;
+}
+
+void COLEDCtrl::set_entire_display_on()
+{
+    command(SSD1327_DISPLAYALLON);
+}
+
+void COLEDCtrl::set_entire_display_off()
+{
+    command(SSD1327_DISPLAYALLOFF);
 }

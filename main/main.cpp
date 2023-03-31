@@ -16,4 +16,36 @@ extern "C" void app_main(void)
 
     COLEDCtrl *oled = GetOLEDCtrl();
     oled->initialize();
+
+    uint8_t value;
+    /*
+    for (uint16_t y = 0; y < oled->get_height(); y++) {
+        value = (uint8_t)(float(y) / float(oled->get_height()) * 255.f);
+        for (uint16_t x = 0; x < oled->get_width(); x++) {
+            oled->set_pixel_value(x, y, value);
+        }
+    }
+    */
+   /*
+   for (uint16_t x = 0; x < oled->get_width(); x++) {
+        value = (uint8_t)(float(x) / float(oled->get_width()) * 255.f);
+        for (uint16_t y = 0; y < oled->get_height(); y++) {
+            oled->set_pixel_value(x, y, value);
+        }
+    }
+    */
+   /*
+    for (uint16_t x = 0; x < oled->get_width(); x++) {
+        for (uint16_t y = 0; y < oled->get_height(); y++) {
+            oled->set_pixel_value(x, y, 255);
+        }
+    }
+    oled->update();
+    */
+    for (;;) {
+        oled->set_entire_display_on();
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        oled->set_entire_display_off();
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
 }
