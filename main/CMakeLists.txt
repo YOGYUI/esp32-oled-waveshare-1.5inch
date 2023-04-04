@@ -1,9 +1,11 @@
 set(PRIV_INCLUDE_DIRS_LIST
     "${CMAKE_CURRENT_LIST_DIR}/include"
+    "${CMAKE_CURRENT_LIST_DIR}/include/fonts"
 )
 set(SRC_DIRS_LIST
     "${CMAKE_CURRENT_LIST_DIR}"
     "${CMAKE_CURRENT_LIST_DIR}/src"
+    "${CMAKE_CURRENT_LIST_DIR}/src/fonts"
 )
 set(EXCLUDE_SRCS_LIST "")
 set(PRIV_REQUIRES_LIST "")
